@@ -1,0 +1,1393 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>EDR Monitor — Validation Mode</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=DM+Sans:wght@300;400;500&display=swap');
+
+:root {
+  --bg:       #080c12;
+  --bg2:      #0d1520;
+  --bg3:      #121d2e;
+  --border:   #1c2d42;
+  --border2:  #243548;
+  --text:     #c8d8e8;
+  --text2:    #5a7890;
+  --text3:    #3a5068;
+  --green:    #00e676;
+  --green2:   #00b85a;
+  --red:      #ef5350;
+  --amber:    #ffab40;
+  --blue:     #4fc3f7;
+  --purple:   #ce93d8;
+  --teal:     #00bfa5;
+  --mono:     'JetBrains Mono', monospace;
+  --sans:     'DM Sans', sans-serif;
+}
+
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--sans);
+  min-height: 100vh;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+/* ── HEADER ── */
+.header {
+  width: 100%;
+  max-width: 980px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 18px;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.title-block h1 {
+  font-family: var(--mono);
+  font-size: 0.85rem;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  color: var(--blue);
+  text-transform: uppercase;
+}
+.title-block p {
+  font-size: 0.65rem;
+  color: var(--text2);
+  letter-spacing: 0.07em;
+  margin-top: 2px;
+}
+
+/* ── VALIDATION MODE TOGGLE ── */
+.val-toggle-wrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.val-toggle-label {
+  font-family: var(--mono);
+  font-size: 0.7rem;
+  color: var(--text2);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.val-switch {
+  position: relative;
+  width: 52px;
+  height: 26px;
+  cursor: pointer;
+}
+.val-switch input { display: none; }
+.val-switch-track {
+  position: absolute;
+  inset: 0;
+  background: var(--bg3);
+  border: 1px solid var(--border2);
+  border-radius: 13px;
+  transition: background 0.3s, border-color 0.3s;
+}
+.val-switch input:checked ~ .val-switch-track {
+  background: #003820;
+  border-color: var(--green2);
+}
+.val-switch-thumb {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--text2);
+  transition: transform 0.25s, background 0.25s;
+}
+.val-switch input:checked ~ .val-switch-track .val-switch-thumb {
+  transform: translateX(26px);
+  background: var(--green);
+  box-shadow: 0 0 8px var(--green2);
+}
+
+/* ── BLE CONTROLS ── */
+.ble-bar {
+  width: 100%;
+  max-width: 980px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+}
+.status-pill {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 14px;
+  border-radius: 20px;
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  font-family: var(--mono);
+  font-size: 0.7rem;
+}
+.dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--text3);
+  transition: background 0.3s;
+}
+.dot.connected { background: var(--green); box-shadow: 0 0 6px #00e67666; }
+.dot.connecting { background: var(--amber); animation: blink 0.8s infinite; }
+@keyframes blink { 0%,100%{opacity:1}50%{opacity:0.2} }
+
+button {
+  padding: 8px 18px;
+  border: 1px solid var(--border2);
+  border-radius: 6px;
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  cursor: pointer;
+  letter-spacing: 0.06em;
+  background: var(--bg2);
+  color: var(--text);
+  transition: all 0.2s;
+}
+button:hover { border-color: var(--blue); color: var(--blue); }
+button:disabled { opacity: 0.3; cursor: default; }
+#btnConnect    { border-color: #1565c0; color: var(--blue); }
+#btnDisconnect { border-color: #6b1a1a; color: var(--red); }
+
+/* ── METRIC STRIP ── */
+.metrics {
+  width: 100%;
+  max-width: 980px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+  gap: 8px;
+  margin-bottom: 14px;
+}
+.metric {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 14px;
+  text-align: center;
+}
+.metric-val {
+  font-family: var(--mono);
+  font-size: 1.6rem;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--blue);
+}
+.metric-val.rr  { color: var(--green); }
+.metric-val.hr  { color: var(--red); }
+.metric-val.rms { color: var(--amber); }
+.metric-lbl {
+  font-size: 0.58rem;
+  color: var(--text2);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin-top: 3px;
+}
+
+/* ── PANELS ── */
+.panels {
+  width: 100%;
+  max-width: 980px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+.panel {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px 16px;
+}
+.panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+.panel-label {
+  font-family: var(--mono);
+  font-size: 0.65rem;
+  color: var(--text2);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.panel-stat {
+  font-family: var(--mono);
+  font-size: 0.62rem;
+  color: var(--text3);
+}
+canvas { display: block; width: 100%; background: #060d16; border-radius: 6px; }
+
+/* ═══════════════════════════════════════
+   VALIDATION MODE PANEL
+═══════════════════════════════════════ */
+#valPanel {
+  width: 100%;
+  max-width: 980px;
+  display: none;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 14px;
+  animation: slideIn 0.35s ease;
+}
+#valPanel.active { display: flex; }
+@keyframes slideIn {
+  from { opacity: 0; transform: translateY(-12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Trial header bar ── */
+.val-header {
+  background: #060e06;
+  border: 1px solid var(--green2);
+  border-radius: 10px;
+  padding: 14px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.val-header-title {
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.15em;
+  color: var(--green);
+  text-transform: uppercase;
+}
+.val-header-sub {
+  font-size: 0.65rem;
+  color: var(--text2);
+  margin-top: 2px;
+  font-family: var(--mono);
+}
+
+/* ── Config row ── */
+.val-config {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.val-config label {
+  font-family: var(--mono);
+  font-size: 0.65rem;
+  color: var(--text2);
+  letter-spacing: 0.08em;
+}
+.val-config select {
+  background: var(--bg3);
+  border: 1px solid var(--border2);
+  border-radius: 5px;
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  padding: 5px 10px;
+  cursor: pointer;
+}
+.val-config input[type=number] {
+  background: var(--bg3);
+  border: 1px solid var(--border2);
+  border-radius: 5px;
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  padding: 5px 8px;
+  width: 64px;
+  text-align: center;
+}
+
+/* ── Main test layout ── */
+.val-main {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+@media(max-width:600px){ .val-main { grid-template-columns: 1fr; } }
+
+/* ── Timer block ── */
+.val-timer-block {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+}
+.timer-ring-wrap {
+  position: relative;
+  width: 160px;
+  height: 160px;
+}
+.timer-ring-wrap svg { position: absolute; top: 0; left: 0; transform: rotate(-90deg); }
+.timer-display {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+.timer-digits {
+  font-family: var(--mono);
+  font-size: 2.4rem;
+  font-weight: 700;
+  color: var(--text);
+  line-height: 1;
+  transition: color 0.3s;
+}
+.timer-digits.urgent { color: var(--red); }
+.timer-digits.done   { color: var(--green); }
+.timer-phase {
+  font-family: var(--mono);
+  font-size: 0.6rem;
+  color: var(--text2);
+  letter-spacing: 0.12em;
+  margin-top: 4px;
+  text-transform: uppercase;
+}
+.timer-btns {
+  display: flex;
+  gap: 8px;
+}
+.btn-start {
+  background: #003820 !important;
+  border-color: var(--green2) !important;
+  color: var(--green) !important;
+  font-size: 0.75rem !important;
+  padding: 8px 20px !important;
+}
+.btn-start:hover { background: #004d2a !important; }
+.btn-reset {
+  font-size: 0.72rem !important;
+  padding: 8px 14px !important;
+}
+
+/* ── Manual counter block ── */
+.val-counter-block {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+}
+.counter-label {
+  font-family: var(--mono);
+  font-size: 0.65rem;
+  color: var(--text2);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  text-align: center;
+}
+.counter-display {
+  font-family: var(--mono);
+  font-size: 5rem;
+  font-weight: 700;
+  color: var(--amber);
+  line-height: 1;
+  transition: transform 0.1s;
+}
+.counter-display.bump { transform: scale(1.12); }
+.counter-rate {
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  color: var(--text2);
+}
+.counter-rate span {
+  color: var(--amber);
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+.btn-breath {
+  width: 100%;
+  padding: 18px !important;
+  font-size: 0.78rem !important;
+  letter-spacing: 0.12em !important;
+  background: #1a1000 !important;
+  border-color: var(--amber) !important;
+  color: var(--amber) !important;
+  border-radius: 10px !important;
+  transition: all 0.1s !important;
+}
+.btn-breath:active {
+  background: #2d1c00 !important;
+  transform: scale(0.97);
+}
+.btn-undo {
+  font-size: 0.65rem !important;
+  padding: 6px 12px !important;
+  color: var(--text2) !important;
+  border-color: var(--border) !important;
+}
+
+/* ── Snapshot + comparison ── */
+.val-snapshot {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 16px 20px;
+}
+.snapshot-title {
+  font-family: var(--mono);
+  font-size: 0.65rem;
+  color: var(--text2);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  margin-bottom: 14px;
+}
+.snapshot-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.snap-card {
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  text-align: center;
+}
+.snap-val {
+  font-family: var(--mono);
+  font-size: 1.8rem;
+  font-weight: 700;
+  line-height: 1;
+}
+.snap-lbl {
+  font-size: 0.58rem;
+  color: var(--text2);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin-top: 3px;
+}
+.snap-card.target .snap-val  { color: var(--blue); }
+.snap-card.manual .snap-val  { color: var(--amber); }
+.snap-card.device .snap-val  { color: var(--green); }
+.snap-card.error-good .snap-val { color: var(--green); }
+.snap-card.error-ok   .snap-val { color: var(--amber); }
+.snap-card.error-bad  .snap-val { color: var(--red); }
+.snap-card.error-good { border-color: var(--green2); }
+.snap-card.error-bad  { border-color: var(--red); }
+
+.btn-record {
+  width: 100%;
+  margin-top: 10px;
+  padding: 10px !important;
+  background: #001a30 !important;
+  border-color: var(--blue) !important;
+  color: var(--blue) !important;
+  font-size: 0.72rem !important;
+  letter-spacing: 0.1em !important;
+}
+
+/* ── Results table ── */
+.val-results {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 16px 20px;
+}
+.results-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+.results-title {
+  font-family: var(--mono);
+  font-size: 0.65rem;
+  color: var(--text2);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.results-actions { display: flex; gap: 6px; }
+.btn-export { font-size: 0.65rem !important; padding: 5px 10px !important; }
+.btn-clear  { font-size: 0.65rem !important; padding: 5px 10px !important; color: var(--text2) !important; }
+
+table { width: 100%; border-collapse: collapse; font-family: var(--mono); font-size: 0.7rem; }
+th {
+  text-align: left;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--border2);
+  color: var(--text2);
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-size: 0.6rem;
+}
+td {
+  padding: 7px 10px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text);
+}
+tr:last-child td { border-bottom: none; }
+.td-good { color: var(--green); font-weight: 700; }
+.td-ok   { color: var(--amber); font-weight: 700; }
+.td-bad  { color: var(--red);   font-weight: 700; }
+.no-data {
+  text-align: center;
+  padding: 20px;
+  color: var(--text3);
+  font-family: var(--mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.1em;
+}
+
+/* ── Log ── */
+.log-box {
+  width: 100%;
+  max-width: 980px;
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  color: var(--text3);
+  height: 65px;
+  overflow-y: auto;
+}
+.log-box p { margin: 1px 0; }
+.log-box p.ok   { color: var(--green); }
+.log-box p.warn { color: var(--amber); }
+.log-box p.err  { color: var(--red); }
+.log-box p.val  { color: var(--blue); }
+</style>
+</head>
+<body>
+
+<!-- ── HEADER ── -->
+<div class="header">
+  <div class="title-block">
+    <h1>EDR Monitor — Complete Pipeline</h1>
+    <p>Lead I · Bandpass → R-Peak → QRS-RMS → Sliding DFT (32-beat) → Respiratory Rate</p>
+  </div>
+  <div class="val-toggle-wrap">
+    <span class="val-toggle-label">Validation mode</span>
+    <label class="val-switch">
+      <input type="checkbox" id="valModeSwitch" onchange="toggleValMode(this.checked)">
+      <div class="val-switch-track">
+        <div class="val-switch-thumb"></div>
+      </div>
+    </label>
+  </div>
+</div>
+
+<!-- ── BLE BAR ── -->
+<div class="ble-bar">
+  <div class="status-pill">
+    <div class="dot disconnected" id="statusDot"></div>
+    <span id="statusText" style="font-family:var(--mono);font-size:0.7rem;">Disconnected</span>
+  </div>
+  <button id="btnConnect">Connect BLE</button>
+  <button id="btnDisconnect" disabled>Disconnect</button>
+</div>
+
+<!-- ── METRICS ── -->
+<div class="metrics">
+  <div class="metric"><div class="metric-val rr" id="mRespRate">—</div><div class="metric-lbl">Resp. Rate (BPM)</div></div>
+  <div class="metric"><div class="metric-val hr"  id="mHR">—</div><div class="metric-lbl">Heart Rate (BPM)</div></div>
+  <div class="metric"><div class="metric-val rms" id="mRMS">—</div><div class="metric-lbl">QRS RMS</div></div>
+  <div class="metric"><div class="metric-val"     id="mRR">—</div><div class="metric-lbl">RR Interval (ms)</div></div>
+  <div class="metric"><div class="metric-val"     id="mFs">—</div><div class="metric-lbl">Actual fs (Hz)</div></div>
+</div>
+
+<!-- ══════════════════════════════════
+     VALIDATION MODE PANEL
+══════════════════════════════════ -->
+<div id="valPanel">
+
+  <!-- Header bar -->
+  <div class="val-header">
+    <div>
+      <div class="val-header-title">⬡ Validation Testing Mode</div>
+      <div class="val-header-sub">Set target rate on pacer → start timer → count breaths → record result</div>
+    </div>
+    <div class="val-config">
+      <label>Duration</label>
+      <select id="durationSelect" onchange="updateDuration()">
+        <option value="30">30 seconds</option>
+        <option value="60" selected>60 seconds</option>
+        <option value="90">90 seconds</option>
+        <option value="custom">Custom…</option>
+      </select>
+      <input type="number" id="customDuration" value="60" min="10" max="300"
+             style="display:none" onchange="updateDuration()">
+      <label style="margin-left:8px;">Target rate</label>
+      <input type="number" id="targetRate" value="10" min="4" max="40"
+             style="width:56px;background:var(--bg3);border:1px solid var(--border2);border-radius:5px;color:var(--text);font-family:var(--mono);font-size:0.72rem;padding:5px 8px;text-align:center;">
+      <span style="font-family:var(--mono);font-size:0.65rem;color:var(--text2);">BPM</span>
+    </div>
+  </div>
+
+  <!-- Main two-column: timer + breath counter -->
+  <div class="val-main">
+
+    <!-- Timer -->
+    <div class="val-timer-block">
+      <div style="font-family:var(--mono);font-size:0.62rem;color:var(--text2);letter-spacing:0.12em;text-transform:uppercase;">
+        Trial Timer
+      </div>
+      <div class="timer-ring-wrap">
+        <svg width="160" height="160" viewBox="0 0 160 160">
+          <!-- Background ring -->
+          <circle cx="80" cy="80" r="68" fill="none"
+                  stroke="var(--border2)" stroke-width="6"/>
+          <!-- Progress ring -->
+          <circle cx="80" cy="80" r="68" fill="none"
+                  stroke="var(--green)" stroke-width="6"
+                  stroke-linecap="round"
+                  id="timerRing"
+                  stroke-dasharray="427"
+                  stroke-dashoffset="0"
+                  style="transition:stroke-dashoffset 1s linear, stroke 0.3s;"/>
+        </svg>
+        <div class="timer-display">
+          <div class="timer-digits" id="timerDigits">00:60</div>
+          <div class="timer-phase" id="timerPhase">ready</div>
+        </div>
+      </div>
+      <div class="timer-btns">
+        <button class="btn-start" id="btnTimer" onclick="startStopTimer()">Start</button>
+        <button class="btn-reset" onclick="resetTimer()">Reset</button>
+      </div>
+      <!-- Trial progress indicator -->
+      <div style="font-family:var(--mono);font-size:0.62rem;color:var(--text2);text-align:center;">
+        Trial <span id="trialNum">1</span> of session
+      </div>
+    </div>
+
+    <!-- Manual breath counter -->
+    <div class="val-counter-block">
+      <div class="counter-label">Manual breath count<br>
+        <span style="font-size:0.58rem;color:var(--text3);">tap once per breath (inhale)</span>
+      </div>
+      <div class="counter-display" id="breathCount">0</div>
+      <div class="counter-rate">
+        Calculated rate: <span id="manualRate">—</span> BPM
+      </div>
+      <button class="btn-breath" onclick="countBreath()" id="btnBreath" disabled>
+        ▼ &nbsp; TAP PER BREATH &nbsp; ▼
+      </button>
+      <button class="btn-undo" onclick="undoBreath()">↩ Undo last</button>
+    </div>
+  </div>
+
+  <!-- Snapshot comparison -->
+  <div class="val-snapshot">
+    <div class="snapshot-title">Current trial — live comparison</div>
+    <div class="snapshot-row">
+      <div class="snap-card target">
+        <div class="snap-val" id="snapTarget">—</div>
+        <div class="snap-lbl">Target (BPM)</div>
+      </div>
+      <div class="snap-card manual">
+        <div class="snap-val" id="snapManual">—</div>
+        <div class="snap-lbl">Manual count</div>
+      </div>
+      <div class="snap-card device">
+        <div class="snap-val" id="snapDevice">—</div>
+        <div class="snap-lbl">Device (BPM)</div>
+      </div>
+    </div>
+    <div class="snapshot-row">
+      <div class="snap-card" id="errDevTarget">
+        <div class="snap-val" id="errDevTargetVal">—</div>
+        <div class="snap-lbl">Dev vs Target error</div>
+      </div>
+      <div class="snap-card" id="errDevManual">
+        <div class="snap-val" id="errDevManualVal">—</div>
+        <div class="snap-lbl">Dev vs Manual error</div>
+      </div>
+      <div class="snap-card" id="errManualTarget">
+        <div class="snap-val" id="errManualTargetVal">—</div>
+        <div class="snap-lbl">Manual vs Target error</div>
+      </div>
+    </div>
+    <button class="btn-record" onclick="recordTrial()">
+      ✦ Record this trial to results table
+    </button>
+  </div>
+
+  <!-- Results table -->
+  <div class="val-results">
+    <div class="results-header">
+      <div class="results-title">Validation results log</div>
+      <div class="results-actions">
+        <button class="btn-export" onclick="exportCSV()">Export CSV</button>
+        <button class="btn-clear"  onclick="clearResults()">Clear</button>
+      </div>
+    </div>
+    <table id="resultsTable">
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Target (BPM)</th>
+          <th>Duration (s)</th>
+          <th>Manual count</th>
+          <th>Manual rate (BPM)</th>
+          <th>Device (BPM)</th>
+          <th>HR (BPM)</th>
+          <th>Dev–Target err</th>
+          <th>Dev–Manual err</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody id="resultsBody">
+        <tr><td colspan="10" class="no-data">No trials recorded yet. Run a trial and click "Record".</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+</div>
+<!-- END VALIDATION PANEL -->
+
+<!-- ── ECG PANELS ── -->
+<div class="panels">
+  <div class="panel">
+    <div class="panel-header">
+      <div class="panel-label">
+        <span style="color:var(--green)">● ECG</span> &nbsp;
+        Filtered Lead I · 3 s window ·
+        <span style="color:var(--red)">▲ R-peak</span>
+      </div>
+      <div class="panel-stat" id="ecgStat">—</div>
+    </div>
+    <canvas id="ecgCanvas" height="170"></canvas>
+  </div>
+
+  <div class="panel">
+    <div class="panel-header">
+      <div class="panel-label"><span style="color:var(--amber)">● EDR Signal</span> &nbsp; Beat-by-beat QRS RMS · 32-beat window</div>
+      <div class="panel-stat" id="edrStat">—</div>
+    </div>
+    <canvas id="edrCanvas" height="120"></canvas>
+  </div>
+
+  <div class="panel">
+    <div class="panel-header">
+      <div class="panel-label"><span style="color:var(--purple)">● Power Spectrum</span> &nbsp; DFT · 6–40 BPM range</div>
+      <div class="panel-stat" id="specStat">—</div>
+    </div>
+    <canvas id="specCanvas" height="120"></canvas>
+  </div>
+
+  <div class="panel">
+    <div class="panel-header">
+      <div class="panel-label"><span style="color:var(--blue)">● Resp Rate History</span> &nbsp; Last 20 estimates</div>
+      <div class="panel-stat" id="rrHistStat">—</div>
+    </div>
+    <canvas id="rrHistCanvas" height="100"></canvas>
+  </div>
+</div>
+
+<div class="log-box" id="logBox"></div>
+
+<!-- ═══════════════ JAVASCRIPT ═══════════════ -->
+<script>
+// ── BLE Config ────────────────────────────────────────────────────
+const SVC_UUID  = '4fafc201-1fb5-459e-8fcc-c5c9c331914b';
+const CHAR_UUID = 'beb5483e-36e1-4688-b7f5-ea07361b26a8';
+
+// ── Ring buffers ──────────────────────────────────────────────────
+const ECG_BUF = 600;
+const ecgBuf  = new Float32Array(ECG_BUF);
+const peakBuf = new Uint8Array(ECG_BUF);
+let   ecgHead = 0, hasData = false;
+
+const MAX_EDR = 32;
+const edrVals = [];
+const MAX_RR_HIST = 20;
+const rrSmoothed  = [];
+let spectrumData  = [], peakFreqBPM = 0;
+
+// ── State ─────────────────────────────────────────────────────────
+let sampleCount=0, rateCounter=0, lastRateTime=performance.now();
+let latestHR=0, latestRRms=0, latestRMS=0, latestResp=0;
+let lastPeakWall=0, renderPending=false, bleDevice=null;
+
+// ═══════════════════════════════════════
+//  VALIDATION STATE
+// ═══════════════════════════════════════
+let valModeActive   = false;
+let timerDuration   = 60;    // seconds
+let timerRemaining  = 60;
+let timerRunning    = false;
+let timerInterval   = null;
+let trialCount      = 0;
+let breathCount     = 0;
+let breathTimes     = [];    // timestamps of each breath tap
+let deviceSnapshots = [];    // device readings during active trial
+let trialResults    = [];
+
+// ── Validation mode toggle ────────────────────────────────────────
+function toggleValMode(on) {
+  valModeActive = on;
+  const panel = document.getElementById('valPanel');
+  panel.classList.toggle('active', on);
+  log(on ? 'Validation mode activated. Set your target rate and press Start.' : 'Validation mode off.', on ? 'val' : '');
+}
+
+// ── Duration config ───────────────────────────────────────────────
+function updateDuration() {
+  const sel = document.getElementById('durationSelect').value;
+  const custom = document.getElementById('customDuration');
+  if (sel === 'custom') {
+    custom.style.display = 'inline-block';
+    timerDuration = parseInt(custom.value) || 60;
+  } else {
+    custom.style.display = 'none';
+    timerDuration = parseInt(sel);
+  }
+  if (!timerRunning) {
+    timerRemaining = timerDuration;
+    updateTimerDisplay();
+  }
+}
+
+// ── Timer ─────────────────────────────────────────────────────────
+function startStopTimer() {
+  if (timerRunning) {
+    // Pause
+    clearInterval(timerInterval);
+    timerRunning = false;
+    document.getElementById('btnTimer').textContent = 'Resume';
+    document.getElementById('timerPhase').textContent = 'paused';
+    document.getElementById('btnBreath').disabled = true;
+  } else {
+    // Start / resume
+    if (timerRemaining <= 0) resetTimer();
+    timerRunning = true;
+    document.getElementById('btnTimer').textContent = 'Pause';
+    document.getElementById('timerPhase').textContent = 'running';
+    document.getElementById('btnBreath').disabled = false;
+    deviceSnapshots = [];
+
+    timerInterval = setInterval(() => {
+      timerRemaining--;
+
+      // Capture device reading every second during trial
+      if (latestResp > 0) deviceSnapshots.push(latestResp);
+
+      updateTimerDisplay();
+
+      if (timerRemaining <= 0) {
+        clearInterval(timerInterval);
+        timerRunning = false;
+        document.getElementById('btnTimer').textContent = 'Start';
+        document.getElementById('timerPhase').textContent = 'done ✓';
+        document.getElementById('btnBreath').disabled = true;
+        document.getElementById('timerDigits').className = 'timer-digits done';
+        onTrialComplete();
+      }
+    }, 1000);
+  }
+}
+
+function resetTimer() {
+  clearInterval(timerInterval);
+  timerRunning  = false;
+  timerRemaining = timerDuration;
+  breathCount   = 0;
+  breathTimes   = [];
+  deviceSnapshots = [];
+  document.getElementById('btnTimer').textContent = 'Start';
+  document.getElementById('timerPhase').textContent = 'ready';
+  document.getElementById('btnBreath').disabled = true;
+  document.getElementById('breathCount').textContent = '0';
+  document.getElementById('manualRate').textContent = '—';
+  document.getElementById('timerDigits').className = 'timer-digits';
+  updateTimerDisplay();
+  updateSnapshot();
+}
+
+function updateTimerDisplay() {
+  const m = Math.floor(timerRemaining / 60);
+  const s = timerRemaining % 60;
+  const txt = m > 0
+    ? `${m}:${String(s).padStart(2,'0')}`
+    : `${String(s).padStart(2,'0')}`;
+
+  const el = document.getElementById('timerDigits');
+  el.textContent = m > 0 ? txt : `00:${txt}`;
+  el.className = 'timer-digits' + (timerRemaining <= 10 && timerRunning ? ' urgent' : '');
+
+  // Ring progress
+  const CIRC = 427;
+  const frac = timerRemaining / timerDuration;
+  const offset = CIRC * (1 - frac);
+  const ring = document.getElementById('timerRing');
+  ring.setAttribute('stroke-dashoffset', offset.toFixed(1));
+  const hue = timerRemaining <= 10 ? 'var(--red)' : timerRemaining <= 20 ? 'var(--amber)' : 'var(--green)';
+  ring.setAttribute('stroke', hue);
+}
+
+function onTrialComplete() {
+  // Auto-populate snapshot with median device reading
+  const devReading = deviceSnapshots.length > 0
+    ? Math.round(median(deviceSnapshots))
+    : (latestResp || 0);
+
+  updateSnapshot(devReading);
+  log(`Trial ${trialCount + 1} complete. Manual: ${breathCount} breaths → ${calcManualRate()} BPM. Device: ${devReading} BPM.`, 'val');
+}
+
+// ── Breath counter ────────────────────────────────────────────────
+function countBreath() {
+  if (!timerRunning) return;
+  breathCount++;
+  breathTimes.push(performance.now());
+
+  const el = document.getElementById('breathCount');
+  el.textContent = breathCount;
+  el.classList.add('bump');
+  setTimeout(() => el.classList.remove('bump'), 100);
+
+  const rate = calcManualRate();
+  document.getElementById('manualRate').textContent = rate !== null ? rate : '—';
+  updateSnapshot();
+}
+
+function undoBreath() {
+  if (breathCount > 0) {
+    breathCount--;
+    breathTimes.pop();
+    document.getElementById('breathCount').textContent = breathCount;
+    const rate = calcManualRate();
+    document.getElementById('manualRate').textContent = rate !== null ? rate : '—';
+    updateSnapshot();
+  }
+}
+
+function calcManualRate() {
+  if (breathCount < 1) return null;
+  const elapsed = timerDuration - timerRemaining;
+  if (elapsed < 1) return null;
+  return Math.round((breathCount / elapsed) * 60);
+}
+
+// ── Live snapshot update ──────────────────────────────────────────
+function updateSnapshot(forcedDevice) {
+  const target  = parseInt(document.getElementById('targetRate').value) || 0;
+  const manual  = calcManualRate();
+  const device  = forcedDevice !== undefined ? forcedDevice : (latestResp || 0);
+
+  document.getElementById('snapTarget').textContent = target || '—';
+  document.getElementById('snapManual').textContent = manual !== null ? manual : '—';
+  document.getElementById('snapDevice').textContent = device || '—';
+
+  // Error cards
+  setErrorCard('errDevTarget',  'errDevTargetVal',  device, target);
+  setErrorCard('errDevManual',  'errDevManualVal',  device, manual);
+  setErrorCard('errManualTarget','errManualTargetVal', manual, target);
+}
+
+function setErrorCard(cardId, valId, a, b) {
+  const card = document.getElementById(cardId);
+  const valEl = document.getElementById(valId);
+  if (!a || !b) { valEl.textContent = '—'; card.className = 'snap-card'; return; }
+  const err = Math.abs(a - b);
+  valEl.textContent = err === 0 ? '0' : `±${err.toFixed(1)}`;
+  if (err <= 1)      { card.className = 'snap-card error-good'; }
+  else if (err <= 2) { card.className = 'snap-card error-ok'; }
+  else               { card.className = 'snap-card error-bad'; }
+}
+
+// ── Record trial ──────────────────────────────────────────────────
+function recordTrial() {
+  const target     = parseInt(document.getElementById('targetRate').value) || 0;
+  const manualRate = calcManualRate();
+  const duration   = timerDuration - timerRemaining;
+  const devReading = deviceSnapshots.length > 0
+    ? Math.round(median(deviceSnapshots))
+    : (latestResp || 0);
+  const devHR      = latestHR || 0;
+
+  if (!target || breathCount < 1) {
+    log('Set a target rate and count at least one breath before recording.', 'warn');
+    return;
+  }
+
+  trialCount++;
+  const trial = {
+    num:         trialCount,
+    target,
+    duration:    timerDuration,
+    breathCount,
+    manualRate:  manualRate || 0,
+    device:      devReading,
+    hr:          devHR,
+    errDevTarget: devReading - target,
+    errDevManual: devReading - (manualRate || 0),
+  };
+  trialResults.push(trial);
+  renderResultsTable();
+  log(`Trial ${trialCount} recorded. Dev error vs target: ${trial.errDevTarget >= 0 ? '+' : ''}${trial.errDevTarget} BPM`, 'val');
+  resetTimer();
+}
+
+function renderResultsTable() {
+  const tbody = document.getElementById('resultsBody');
+  if (trialResults.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="10" class="no-data">No trials recorded yet.</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = trialResults.map(t => {
+    const absErr = Math.abs(t.errDevTarget);
+    const errClass = absErr <= 1 ? 'td-good' : absErr <= 2 ? 'td-ok' : 'td-bad';
+    const status   = absErr <= 1 ? '✓ Accurate' : absErr <= 2 ? '~ Acceptable' : '✗ Error';
+    const errSign  = t.errDevTarget >= 0 ? '+' : '';
+    const errManSign = t.errDevManual >= 0 ? '+' : '';
+
+    return `<tr>
+      <td>${t.num}</td>
+      <td>${t.target}</td>
+      <td>${t.duration}</td>
+      <td>${t.breathCount}</td>
+      <td>${t.manualRate}</td>
+      <td>${t.device}</td>
+      <td>${t.hr}</td>
+      <td class="${errClass}">${errSign}${t.errDevTarget}</td>
+      <td>${errManSign}${t.errDevManual}</td>
+      <td class="${errClass}">${status}</td>
+    </tr>`;
+  }).join('');
+}
+
+// ── Export CSV ────────────────────────────────────────────────────
+function exportCSV() {
+  if (trialResults.length === 0) { log('No results to export.', 'warn'); return; }
+
+  const headers = ['Trial','Target (BPM)','Duration (s)','Manual Count',
+                   'Manual Rate (BPM)','Device (BPM)','HR (BPM)',
+                   'Dev-Target Error','Dev-Manual Error'];
+  const rows = trialResults.map(t =>
+    [t.num,t.target,t.duration,t.breathCount,t.manualRate,
+     t.device,t.hr,t.errDevTarget,t.errDevManual].join(',')
+  );
+
+  const csv  = [headers.join(','), ...rows].join('\n');
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href     = url;
+  a.download = `edr_validation_${new Date().toISOString().slice(0,10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+  log('CSV exported.', 'ok');
+}
+
+function clearResults() {
+  trialResults = [];
+  trialCount   = 0;
+  renderResultsTable();
+  document.getElementById('trialNum').textContent = '1';
+  log('Results cleared.', 'warn');
+}
+
+// ── Helpers ───────────────────────────────────────────────────────
+function median(arr) {
+  const s = [...arr].sort((a,b) => a-b);
+  const m = Math.floor(s.length / 2);
+  return s.length % 2 ? s[m] : (s[m-1] + s[m]) / 2;
+}
+
+// ════════════════════════════════════════
+//  BLE
+// ════════════════════════════════════════
+function log(msg, cls='') {
+  const box = document.getElementById('logBox');
+  const p   = document.createElement('p');
+  if (cls) p.className = cls;
+  p.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+  box.appendChild(p);
+  box.scrollTop = box.scrollHeight;
+}
+function setStatus(state, text) {
+  document.getElementById('statusDot').className    = `dot ${state}`;
+  document.getElementById('statusText').textContent = text;
+}
+
+document.getElementById('btnConnect').addEventListener('click', async () => {
+  if (!navigator.bluetooth) { log('Requires Chrome.', 'err'); return; }
+  setStatus('connecting', 'Scanning…');
+  try {
+    bleDevice = await navigator.bluetooth.requestDevice({
+      filters: [{ name: 'ECG_Pediatric_Belt' }],
+      optionalServices: [SVC_UUID]
+    });
+    bleDevice.addEventListener('gattserverdisconnected', onDisconnected);
+    const srv  = await bleDevice.gatt.connect();
+    const svc  = await srv.getPrimaryService(SVC_UUID);
+    const chr  = await svc.getCharacteristic(CHAR_UUID);
+    await chr.startNotifications();
+    chr.addEventListener('characteristicvaluechanged', onData);
+    setStatus('connected', `Connected — ${bleDevice.name}`);
+    log(`Connected to "${bleDevice.name}"`, 'ok');
+    document.getElementById('btnConnect').disabled    = true;
+    document.getElementById('btnDisconnect').disabled = false;
+  } catch (err) {
+    setStatus('disconnected', 'Disconnected');
+    log(`Failed: ${err.message}`, 'err');
+  }
+});
+
+document.getElementById('btnDisconnect').addEventListener('click', async () => {
+  if (bleDevice?.gatt?.connected) await bleDevice.gatt.disconnect();
+});
+
+function onDisconnected() {
+  setStatus('disconnected', 'Disconnected');
+  log('Disconnected.', 'warn');
+  document.getElementById('btnConnect').disabled    = false;
+  document.getElementById('btnDisconnect').disabled = true;
+}
+
+// ── Data handler ──────────────────────────────────────────────────
+const dec = new TextDecoder();
+
+function onData(event) {
+  const txt  = dec.decode(event.target.value).trim();
+  const p    = txt.split(',');
+  if (p.length < 5) return;
+
+  const filtVal = parseInt(p[0], 10);
+  const isPeak  = parseInt(p[1], 10) === 1;
+  const hrBPM   = parseInt(p[2], 10);
+  const qrsRMS  = parseInt(p[3], 10);
+  const resp    = parseInt(p[4], 10);
+  if (isNaN(filtVal)) return;
+
+  ecgBuf[ecgHead]  = filtVal;
+  peakBuf[ecgHead] = isPeak ? 1 : 0;
+  ecgHead = (ecgHead + 1) % ECG_BUF;
+  sampleCount++; rateCounter++; hasData = true;
+
+  const now = performance.now();
+  if (now - lastRateTime >= 1000) {
+    document.getElementById('mFs').textContent = rateCounter;
+    rateCounter = 0; lastRateTime = now;
+  }
+
+  if (isPeak) {
+    if (lastPeakWall > 0) {
+      const rrMs = Math.round(now - lastPeakWall);
+      if (rrMs > 300 && rrMs < 2000) {
+        latestRRms = rrMs;
+        document.getElementById('mRR').textContent = rrMs;
+      }
+    }
+    lastPeakWall = now;
+    if (hrBPM > 30 && hrBPM < 220) {
+      latestHR = hrBPM;
+      document.getElementById('mHR').textContent = hrBPM;
+    }
+    if (qrsRMS > 0) {
+      latestRMS = qrsRMS;
+      document.getElementById('mRMS').textContent = qrsRMS.toLocaleString();
+      edrVals.push({ rms: qrsRMS, ts: now });
+      if (edrVals.length > MAX_EDR) edrVals.shift();
+      recomputeSpectrum();
+    }
+    if (resp > 0 && resp < 60) {
+      latestResp = resp;
+      document.getElementById('mRespRate').textContent = resp;
+      rrSmoothed.push(resp);
+      if (rrSmoothed.length > MAX_RR_HIST) rrSmoothed.shift();
+    }
+    // Live update snapshot during active trial
+    if (valModeActive && timerRunning) updateSnapshot();
+  }
+
+  if (!renderPending) { renderPending = true; requestAnimationFrame(renderAll); }
+}
+
+// ── Spectrum ──────────────────────────────────────────────────────
+function recomputeSpectrum() {
+  const N = 16;
+  if (edrVals.length < N) { spectrumData = []; return; }
+  const win  = edrVals.slice(-N).map(b => b.rms);
+  const mean = win.reduce((a,b)=>a+b,0)/N;
+  const x    = win.map(v=>v-mean);
+  const medRR = latestRRms > 0 ? latestRRms : 857;
+  const hrBPM = 60000 / medRR;
+  spectrumData = []; peakFreqBPM = 0;
+  let bestPow = 0;
+  for (let k=1; k<=N/2; k++) {
+    const freqBPM = k*hrBPM/N;
+    if (freqBPM < 4 || freqBPM > 45) continue;
+    let cs=0, ss=0;
+    for (let n=0; n<N; n++) {
+      const ph = 2*Math.PI*k*n/N;
+      cs += x[n]*Math.cos(ph); ss += x[n]*Math.sin(ph);
+    }
+    const pow = cs*cs + ss*ss;
+    spectrumData.push({ freq: freqBPM, power: pow });
+    if (pow > bestPow) { bestPow = pow; peakFreqBPM = freqBPM; }
+  }
+}
+
+// ════════════════════════════════════════
+//  CANVAS RENDERING
+// ════════════════════════════════════════
+function setupCanvas(el) {
+  const dpr=window.devicePixelRatio||1, r=el.getBoundingClientRect();
+  const W=Math.round(r.width*dpr), H=Math.round(r.height*dpr);
+  if (el.width!==W||el.height!==H){el.width=W;el.height=H;}
+  return {ctx:el.getContext('2d'),W,H,dpr};
+}
+function grid(ctx,W,H,cols=5) {
+  ctx.lineWidth=0.5;
+  for(let x=0;x<=W;x+=W/cols){
+    ctx.beginPath();ctx.strokeStyle=(Math.round(x)%Math.round(W/cols)<2)?'#14263a':'#0c1e2e';
+    ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke();
+  }
+  for(let y=0;y<=H;y+=H/4){
+    ctx.beginPath();ctx.strokeStyle='#14263a';ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke();
+  }
+}
+
+function renderECG() {
+  const {ctx,W,H,dpr}=setupCanvas(document.getElementById('ecgCanvas'));
+  ctx.fillStyle='#060d16';ctx.fillRect(0,0,W,H);grid(ctx,W,H);
+  if(!hasData)return;
+  let mn=Infinity,mx=-Infinity;
+  for(let i=0;i<ECG_BUF;i++){if(ecgBuf[i]<mn)mn=ecgBuf[i];if(ecgBuf[i]>mx)mx=ecgBuf[i];}
+  const pp=mx-mn,mg=pp*.12||100,yMin=mn-mg,rng=(mx+mg)-yMin;
+  const PAD=.07,dH=H*(1-2*PAD),dY0=H*PAD;
+  const toY=v=>dY0+dH-((v-yMin)/rng)*dH;
+  ctx.beginPath();ctx.strokeStyle='#00e676';ctx.lineWidth=1.5;ctx.lineJoin='round';
+  for(let i=0;i<ECG_BUF;i++){
+    const idx=(ecgHead+i)%ECG_BUF,x=(i/(ECG_BUF-1))*W;
+    i===0?ctx.moveTo(x,toY(ecgBuf[idx])):ctx.lineTo(x,toY(ecgBuf[idx]));
+  }ctx.stroke();
+  ctx.fillStyle='#ef5350';
+  const MH=10*dpr,MW=5*dpr;
+  for(let i=0;i<ECG_BUF;i++){
+    const idx=(ecgHead+i)%ECG_BUF;if(!peakBuf[idx])continue;
+    const x=(i/(ECG_BUF-1))*W,y=toY(ecgBuf[idx]);
+    ctx.beginPath();ctx.moveTo(x,y-MH*.3);ctx.lineTo(x-MW,y-MH*2.5);ctx.lineTo(x+MW,y-MH*2.5);ctx.closePath();ctx.fill();
+    ctx.beginPath();ctx.setLineDash([3*dpr,5*dpr]);ctx.strokeStyle='#ef535040';ctx.lineWidth=.8;
+    ctx.moveTo(x,dY0);ctx.lineTo(x,dY0+dH);ctx.stroke();ctx.setLineDash([]);
+  }
+  document.getElementById('ecgStat').textContent=`pp: ${Math.round(pp).toLocaleString()} counts`;
+}
+
+function renderEDR() {
+  const {ctx,W,H,dpr}=setupCanvas(document.getElementById('edrCanvas'));
+  ctx.fillStyle='#060d16';ctx.fillRect(0,0,W,H);grid(ctx,W,H,8);
+  const N=edrVals.length;
+  if(N<2){ctx.fillStyle='#3a5068';ctx.font=`${11*dpr}px JetBrains Mono`;ctx.fillText('Collecting beats…',12*dpr,H/2+4*dpr);return;}
+  let mn=Infinity,mx=-Infinity;
+  for(const b of edrVals){if(b.rms<mn)mn=b.rms;if(b.rms>mx)mx=b.rms;}
+  const pp=mx-mn,mg=pp*.15||50,yMin=mn-mg,rng=(mx+mg)-yMin;
+  const PAD=.08,dH=H*(1-2*PAD),dY0=H*PAD;
+  const toY=v=>dY0+dH-((v-yMin)/rng)*dH;
+  ctx.beginPath();
+  for(let i=0;i<N;i++){const x=(i/(MAX_EDR-1))*W;i===0?ctx.moveTo(x,toY(edrVals[i].rms)):ctx.lineTo(x,toY(edrVals[i].rms));}
+  ctx.lineTo(((N-1)/(MAX_EDR-1))*W,dY0+dH);ctx.lineTo(0,dY0+dH);ctx.closePath();
+  ctx.fillStyle='#ffab4015';ctx.fill();
+  ctx.beginPath();ctx.strokeStyle='#ffab40';ctx.lineWidth=2;ctx.lineJoin='round';
+  for(let i=0;i<N;i++){const x=(i/(MAX_EDR-1))*W;i===0?ctx.moveTo(x,toY(edrVals[i].rms)):ctx.lineTo(x,toY(edrVals[i].rms));}
+  ctx.stroke();
+  for(let i=0;i<N;i++){
+    const x=(i/(MAX_EDR-1))*W,y=toY(edrVals[i].rms);
+    ctx.beginPath();ctx.arc(x,y,3*dpr,0,Math.PI*2);
+    ctx.fillStyle=i===N-1?'#ef5350':'#ffab40';ctx.fill();
+  }
+  const modPct=N>1?Math.round((pp/((mn+mx)/2))*100):0;
+  document.getElementById('edrStat').textContent=`${N} beats  ·  mod: ${modPct}%  ·  pp: ${Math.round(pp).toLocaleString()}`;
+}
+
+function renderSpectrum() {
+  const {ctx,W,H,dpr}=setupCanvas(document.getElementById('specCanvas'));
+  ctx.fillStyle='#060d16';ctx.fillRect(0,0,W,H);grid(ctx,W,H,8);
+  if(spectrumData.length<2){ctx.fillStyle='#3a5068';ctx.font=`${11*dpr}px JetBrains Mono`;ctx.fillText('Need 16+ beats…',12*dpr,H/2+4*dpr);return;}
+  const maxPow=Math.max(...spectrumData.map(d=>d.power))||1;
+  const freqMin=4,freqMax=45;
+  const PAD=.08,dH=H*(1-2*PAD),dY0=H*PAD;
+  const toX=f=>((f-freqMin)/(freqMax-freqMin))*W;
+  const toY=p=>dY0+dH-(p/maxPow)*dH;
+  for(const d of spectrumData){
+    const x=toX(d.freq),barH=(d.power/maxPow)*dH;
+    const isPk=Math.abs(d.freq-peakFreqBPM)<0.5;
+    ctx.fillStyle=isPk?'#ce93d888':'#4fc3f722';
+    ctx.fillRect(x-4*dpr,dY0+dH-barH,8*dpr,barH);
+  }
+  ctx.beginPath();ctx.strokeStyle='#ce93d8';ctx.lineWidth=1.8;ctx.lineJoin='round';
+  spectrumData.forEach((d,i)=>{const x=toX(d.freq),y=toY(d.power);i===0?ctx.moveTo(x,y):ctx.lineTo(x,y);});
+  ctx.stroke();
+  if(peakFreqBPM>0){
+    const px=toX(peakFreqBPM);
+    ctx.beginPath();ctx.strokeStyle='#ef5350';ctx.lineWidth=1.5;ctx.setLineDash([4*dpr,4*dpr]);
+    ctx.moveTo(px,dY0);ctx.lineTo(px,dY0+dH);ctx.stroke();ctx.setLineDash([]);
+    ctx.fillStyle='#ef5350';ctx.font=`bold ${11*dpr}px JetBrains Mono`;
+    ctx.fillText(`${Math.round(peakFreqBPM)} BPM`,px+5*dpr,dY0+14*dpr);
+  }
+  ctx.fillStyle='#3a5068';ctx.font=`${9*dpr}px JetBrains Mono`;
+  [6,10,15,20,30,40].forEach(f=>{ctx.fillText(f,toX(f)-4*dpr,dY0+dH+13*dpr);});
+  document.getElementById('specStat').textContent=peakFreqBPM>0?`peak: ${Math.round(peakFreqBPM)} BPM`:'accumulating…';
+}
+
+function renderRRHist() {
+  const {ctx,W,H,dpr}=setupCanvas(document.getElementById('rrHistCanvas'));
+  ctx.fillStyle='#060d16';ctx.fillRect(0,0,W,H);grid(ctx,W,H,10);
+  const N=rrSmoothed.length;
+  if(N<2){ctx.fillStyle='#3a5068';ctx.font=`${11*dpr}px JetBrains Mono`;ctx.fillText('Need 16+ beats…',12*dpr,H/2+4*dpr);return;}
+  const mn=Math.min(...rrSmoothed)-3,mx=Math.max(...rrSmoothed)+3;
+  const rng=mx-mn||1;
+  const PAD=.1,dH=H*(1-2*PAD),dY0=H*PAD;
+  const toY=v=>dY0+dH-((v-mn)/rng)*dH;
+  const toX=i=>(i/(MAX_RR_HIST-1))*W;
+  ctx.fillStyle='#00e67609';
+  ctx.fillRect(0,toY(20),W,toY(12)-toY(20));
+  ctx.beginPath();ctx.strokeStyle='#4fc3f7';ctx.lineWidth=2.5;ctx.lineJoin='round';
+  rrSmoothed.forEach((v,i)=>{const xi=MAX_RR_HIST-N+i;i===0?ctx.moveTo(toX(xi),toY(v)):ctx.lineTo(toX(xi),toY(v));});
+  ctx.stroke();
+  rrSmoothed.forEach((v,i)=>{
+    const xi=MAX_RR_HIST-N+i;
+    ctx.beginPath();ctx.arc(toX(xi),toY(v),3.5*dpr,0,Math.PI*2);
+    ctx.fillStyle=i===N-1?'#ef5350':'#4fc3f7';ctx.fill();
+  });
+  const last=rrSmoothed[N-1];
+  ctx.fillStyle='#4fc3f7';ctx.font=`bold ${11*dpr}px JetBrains Mono`;
+  ctx.fillText(`${last} BPM`,8*dpr,dY0+14*dpr);
+  const mean=(rrSmoothed.reduce((a,b)=>a+b,0)/N).toFixed(1);
+  document.getElementById('rrHistStat').textContent=`${N} estimates  ·  mean: ${mean} BPM  ·  latest: ${last} BPM`;
+}
+
+function renderAll() {
+  renderPending=false;
+  renderECG(); renderEDR(); renderSpectrum(); renderRRHist();
+}
+
+// ── Initial state ─────────────────────────────────────────────────
+updateTimerDisplay();
+requestAnimationFrame(renderAll);
+log('Dashboard ready. Toggle "Validation mode" to enable the testing panel.');
+log('Packet format: filtSample, peakFlag, heartRateBPM, qrsRMS, respRate');
+</script>
+</body>
+</html>
