@@ -610,7 +610,7 @@ tr:last-child td { border-bottom: none; }
   <div class="metric"><div class="metric-val hr"  id="mHR">—</div><div class="metric-lbl">Heart Rate (BPM)</div></div>
   <div class="metric"><div class="metric-val rms" id="mRMS">—</div><div class="metric-lbl">QRS RMS</div></div>
   <div class="metric"><div class="metric-val"     id="mRR">—</div><div class="metric-lbl">RR Interval (ms)</div></div>
-  <div class="metric"><div class="metric-val"     id="mFs">—</div><div class="metric-lbl">Actual fs (Hz)</div></div>
+  <div class="metric"><div class="metric-val"     id="mFs">—</div><div class="metric-lbl">DSP fs (Hz) ×8</div></div>
 </div>
 
 <!-- ══════════════════════════════════
@@ -775,6 +775,29 @@ tr:last-child td { border-bottom: none; }
       <div class="panel-stat" id="ecgStat">—</div>
     </div>
     <canvas id="ecgCanvas" height="170"></canvas>
+    <!-- ECG manual scale controls -->
+    <div style="display:flex;gap:20px;align-items:center;margin-top:10px;flex-wrap:wrap;">
+      <div style="display:flex;align-items:center;gap:8px;flex:1;min-width:180px;">
+        <span style="font-family:var(--mono);font-size:0.62rem;color:var(--text2);white-space:nowrap;letter-spacing:0.08em;">GAIN</span>
+        <input type="range" id="ecgGain" min="500" max="30000" step="100" value="8000"
+               oninput="updateEcgScaleLabel()"
+               style="flex:1;accent-color:#00e676;cursor:pointer;">
+        <span style="font-family:var(--mono);font-size:0.65rem;color:#00e676;min-width:52px;text-align:right;"
+              id="ecgGainLabel">±8000</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;flex:1;min-width:180px;">
+        <span style="font-family:var(--mono);font-size:0.62rem;color:var(--text2);white-space:nowrap;letter-spacing:0.08em;">OFFSET</span>
+        <input type="range" id="ecgOffset" min="-20000" max="20000" step="200" value="0"
+               oninput="updateEcgScaleLabel()"
+               style="flex:1;accent-color:#ffab40;cursor:pointer;">
+        <span style="font-family:var(--mono);font-size:0.65rem;color:#ffab40;min-width:52px;text-align:right;"
+              id="ecgOffsetLabel">0</span>
+      </div>
+      <button onclick="resetEcgScale()"
+              style="font-size:0.62rem;padding:5px 10px;white-space:nowrap;color:#5a7890;border-color:#1c2d42;background:#0d1520;border:1px solid #1c2d42;border-radius:6px;cursor:pointer;font-family:var(--mono);">
+        Auto-fit once
+      </button>
+    </div>
   </div>
 
   <div class="panel">
@@ -1187,7 +1210,9 @@ function onData(event) {
 
   const now = performance.now();
   if (now - lastRateTime >= 1000) {
-    document.getElementById('mFs').textContent = rateCounter;
+    // BLE notify fires every 8 samples (BLE_SEND_EVERY=8 in Arduino).
+    // Multiply received packet count by 8 to recover actual DSP fs.
+    document.getElementById('mFs').textContent = rateCounter * 8;
     rateCounter = 0; lastRateTime = now;
   }
 
@@ -1269,15 +1294,64 @@ function grid(ctx,W,H,cols=5) {
   }
 }
 
+// ── ECG slider helpers ───────────────────────────────────────────
+// ecgCenter tracks the slow-moving DC level of the filtered signal.
+// It is updated via a very slow IIR so the signal stays centred on
+// screen as electrode offset drifts, without fighting the HPF.
+let ecgCenter = null;
+
+function updateEcgScaleLabel() {
+  const gain   = parseInt(document.getElementById('ecgGain').value);
+  const offset = parseInt(document.getElementById('ecgOffset').value);
+  document.getElementById('ecgGainLabel').textContent   = `±${gain.toLocaleString()}`;
+  document.getElementById('ecgOffsetLabel').textContent = (offset >= 0 ? '+' : '') + offset.toLocaleString();
+}
+
+function resetEcgScale() {
+  // One-shot auto-fit: read current signal range, set sliders to match
+  if (!hasData) return;
+  let mn=Infinity, mx=-Infinity;
+  for (let i=0;i<ECG_BUF;i++){
+    if(ecgBuf[i]<mn)mn=ecgBuf[i];
+    if(ecgBuf[i]>mx)mx=ecgBuf[i];
+  }
+  const center = (mn + mx) / 2;
+  const half   = Math.max((mx - mn) / 2 * 1.2, 500);
+  ecgCenter    = center;
+  const gainEl = document.getElementById('ecgGain');
+  gainEl.value = Math.min(30000, Math.max(500, Math.round(half / 100) * 100));
+  document.getElementById('ecgOffset').value = 0;
+  updateEcgScaleLabel();
+  log('ECG auto-fitted. Adjust GAIN/OFFSET sliders to fine-tune.', 'ok');
+}
+
 function renderECG() {
   const {ctx,W,H,dpr}=setupCanvas(document.getElementById('ecgCanvas'));
   ctx.fillStyle='#060d16';ctx.fillRect(0,0,W,H);grid(ctx,W,H);
   if(!hasData)return;
-  let mn=Infinity,mx=-Infinity;
-  for(let i=0;i<ECG_BUF;i++){if(ecgBuf[i]<mn)mn=ecgBuf[i];if(ecgBuf[i]>mx)mx=ecgBuf[i];}
-  const pp=mx-mn,mg=pp*.12||100,yMin=mn-mg,rng=(mx+mg)-yMin;
+
+  // ── Slider-driven scale (no auto-scale) ──────────────────────────
+  // GAIN slider = half the visible amplitude range in ADC counts
+  // OFFSET slider = vertical shift of the centre line in ADC counts
+  const halfRange = parseInt(document.getElementById('ecgGain').value)   || 8000;
+  const offset    = parseInt(document.getElementById('ecgOffset').value) || 0;
+
+  // Track signal centre with a very slow IIR (time constant ~5 s)
+  // so the waveform stays vertically centred despite slow DC drift,
+  // without affecting the calibrated amplitude from the GAIN slider.
+  const currentMean = ecgBuf.reduce((s,v)=>s+v,0) / ECG_BUF;
+  ecgCenter = ecgCenter === null ? currentMean : ecgCenter * 0.995 + currentMean * 0.005;
+
+  const yMid = ecgCenter + offset;
+  const yMin = yMid - halfRange;
+  const rng  = halfRange * 2;
   const PAD=.07,dH=H*(1-2*PAD),dY0=H*PAD;
   const toY=v=>dY0+dH-((v-yMin)/rng)*dH;
+
+  // Centre-line guide
+  const midY = toY(yMid);
+  ctx.beginPath();ctx.strokeStyle='#1a3050';ctx.lineWidth=0.7;ctx.setLineDash([4,8]);
+  ctx.moveTo(0,midY);ctx.lineTo(W,midY);ctx.stroke();ctx.setLineDash([]);
   ctx.beginPath();ctx.strokeStyle='#00e676';ctx.lineWidth=1.5;ctx.lineJoin='round';
   for(let i=0;i<ECG_BUF;i++){
     const idx=(ecgHead+i)%ECG_BUF,x=(i/(ECG_BUF-1))*W;
@@ -1292,7 +1366,7 @@ function renderECG() {
     ctx.beginPath();ctx.setLineDash([3*dpr,5*dpr]);ctx.strokeStyle='#ef535040';ctx.lineWidth=.8;
     ctx.moveTo(x,dY0);ctx.lineTo(x,dY0+dH);ctx.stroke();ctx.setLineDash([]);
   }
-  document.getElementById('ecgStat').textContent=`pp: ${Math.round(pp).toLocaleString()} counts`;
+  document.getElementById('ecgStat').textContent=`gain: ±${parseInt(document.getElementById('ecgGain').value).toLocaleString()}  offset: ${parseInt(document.getElementById('ecgOffset').value).toLocaleString()}`;
 }
 
 function renderEDR() {
